@@ -12,16 +12,18 @@ using Syslib;
  * 
  *	1.	Rule based Algorithm uses three rules to solve puzzle and is the fastest algorithm.
  *		The rules are: Cell Singles, Cluster Singles, Cluster cells Traverse Exclusions
- *	
- *	2.	NumPass Algorithm, utililizes the rule base algorithm with add-on to guess numbers.
- *		This is the second fastest algorithm, that sholund not be needed if the puzzle is made for humans
- *	
- *	3.	BackTrack Algorithm (enhanched). This is the slowest algorithm and will test all possible numbers
- *		and will finally solve the puzzle if it's a valid puzzle. However, it utilize Rule based algorithm as
- *		a starting point and may never kick-in as the rule based algorithm probably already solved the puzzle.
- *		Still, backtrack algorithm is usable if need to solve a 'dirty' sudoku puzzle with multiple solutions.
- *		Rule based algorithm will not be able to do that.
  *		
+ *	2.	BackTrack Algorithm (enhanched). This is the slowest algorithm, testing all possible numbers
+ *		and will solve any valid puzzle.
+ *		
+ *		
+ *	ver	
+ *	0.02	Removed pre-run of rule based algorithm from BackTrack algorithm 
+ *			Improved rule based algorithm
+ *			Retired NumPass algorithm as it has about same performance as backtrack with rules algorithm
+ *			
+ *	0.01	Initial
+ *	
  */
 
 
@@ -73,6 +75,37 @@ namespace Sudoku.Puzzle
 		public SudokuPuzzle(string puzzle) : this()
 		{
 			this.SetPuzzle(puzzle);
+		}
+
+		/// <summary>
+		/// Copy sudokupuzzle to this puzzle
+		/// </summary>
+		/// <param name="sudokupuzzle"></param>
+		public void Copy(SudokuPuzzle sudokupuzzle) {
+			if (sudokupuzzle == null) { this.SetPuzzle(""); return; }
+			SudokuCell cell1 = sudokupuzzle.puzzle.FirstCell(), cell2 = this.puzzle.FirstCell();
+			while (cell1 != null) {
+				cell2.Value = cell1.Value;
+				cell1 = sudokupuzzle.puzzle.NextCell();
+				cell2 = this.puzzle.NextCell();
+			}
+		}
+
+		/// <summary>
+		/// Make a copy of current puzzle
+		/// </summary>
+		/// <returns></returns>
+		public SudokuPuzzle Copy()
+		{
+			var newPuzzle = new SudokuPuzzle();
+			SudokuCell cell1 = this.puzzle.FirstCell(), cell2 = newPuzzle.puzzle.FirstCell();
+			while (cell1 != null)
+			{
+				cell2.Value = cell1.Value;
+				cell1 = this.puzzle.NextCell();
+				cell2 = newPuzzle.puzzle.NextCell();
+			}
+			return newPuzzle;
 		}
 
 		/// <summary>
@@ -141,76 +174,27 @@ namespace Sudoku.Puzzle
 		/// 3. exclude numbers mask from clusters where traverse cells forces numbers (based on two numbers)
 		/// </summary>
 		/// <param name="requestedcount">requestedcount is number of undefined cells to resolve before return. if set to 0 all numbers will be solved before return</param>
-		/// <returns>return number of undefined cells resolved</returns>
-		public int ResolveMask(int requestedcount = 0) {
+		/// <returns>return number of undefined cells resolved or -1 if invalid puzzle</returns>
+		public int ResolveRules(int requestedcount = 0) {
 			int count = 0;
 			bool resolved = false;
 			while (this.IsValid()) {
 				if ((requestedcount > 0) && (requestedcount == count)) return count;
 				if (!resolved) resolved = this.ResolveCellSingle();
 				if (!resolved) resolved = this.ResolveClusterSingle();
-				if ((!resolved) && (!ResolveExcludeMaskPair())) return count;    // could not resolve anything
+				if ((!resolved) && (!ResolveExcludeMask())) return count;    // could not resolve anything
 				if (resolved) count++;
 				resolved = false;
 			}
+			if (!this.IsValid()) return -1;
 			return count;
 		}
-
-		/// <summary>
-		/// use NumPass solving algorithm. will resolve puzzle by testing numbers numbers. and try to solve puzzle.
-		/// utilize three rules algorithm to evaluate numbers
-		/// </summary>
-		/// <returns>return true if puzzle is solved</returns>
-		public bool ResolveNumPass()
-		{
-			this.ResolveMask(); // resolve puzzle as far as possible with known rules
-			if (this.IsSolved()) return true;
-			if (!this.IsValid()) return false;
-
-			SudokuPuzzle NumPassPuzzle = new SudokuPuzzle();
-			SudokuCell cell = null;
-			int cellnumber;
-			int numpass;    // current numberguess
-			var puzzlestring = new CStr(this.GetPuzzle());
-
-			cellnumber = 0;
-			while (cellnumber < 81)
-			{
-				cell = this.puzzle.Cell(cellnumber);
-				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0)
-				{
-					numpass = 0;
-					while (numpass++ < 9)
-					{
-						if ((cell.Value & BitMask[numpass]) != 0)
-						{
-							puzzlestring.Set(cellnumber, (byte)(numpass + '0'));
-							NumPassPuzzle.SetPuzzle(puzzlestring.ToString());
-							NumPassPuzzle.ResolveMask();
-							if (NumPassPuzzle.IsSolved()) { this.SetPuzzle(NumPassPuzzle.GetPuzzle()); return true; }
-							else if (!NumPassPuzzle.IsValid()) { cell.Value ^= BitMask[numpass]; }   // unmask number if not valid
-						}
-					}
-					puzzlestring.Set(cellnumber, (byte)('0'));
-				}
-				if ((cellnumber == 80) && (this.ResolveMask() > 0))
-				{
-					if (this.IsSolved()) return true;
-					puzzlestring.Str(this.GetPuzzle());
-					cellnumber = 0;
-				}
-				else cellnumber++;
-			}
-			return false;
-		}
-
 
 		/// <summary>
 		/// use backtrack algorithm to solve puzzle
 		/// </summary>
 		/// <returns>returns true if puzzle is solved or false if puzzle is invalid or unsolvable</returns>
 		public bool ResolveBacktrack() {
-			this.ResolveMask(); // resolve puzzle as far as possible with known rules
 			if (this.IsSolved()) return true;
 			if (!this.IsValid()) return false;
 
@@ -221,8 +205,7 @@ namespace Sudoku.Puzzle
 			var puzzlestring = new CStr(this.GetPuzzle());
 
 			cellnumber = 0;
-			while (cellnumber < 81)
-			{
+			while (cellnumber < 81) {
 				cell = this.puzzle.Cell(cellnumber);
 				// if number is undefined - test possible numbers
 				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) numpass[cellnumber] = 0;
@@ -231,30 +214,23 @@ namespace Sudoku.Puzzle
 			}
 
 			cellnumber = 0;
-			while ((cellnumber >= 0) && (cellnumber < 81))
-			{
-				if (numpass[cellnumber] >= 0)
-				{
+			while ((cellnumber >= 0) && (cellnumber < 81)) {
+				if (numpass[cellnumber] >= 0) {
 					cell = this.puzzle.Cell(cellnumber);
 					numpass[cellnumber]++;
-					while (numpass[cellnumber] <= 9)
-					{
-						if ((cell.Value & BitMask[numpass[cellnumber]]) != 0)
-						{
+					while (numpass[cellnumber] <= 9) {
+						if ((cell.Value & BitMask[numpass[cellnumber]]) != 0) {
 							puzzlestring.Set(cellnumber, (byte)(numpass[cellnumber] + '0'));
 							NumPassPuzzle.SetPuzzle(puzzlestring.ToString());
-							NumPassPuzzle.ResolveMask();
+							NumPassPuzzle.ResolveRules();
 							if (NumPassPuzzle.IsValid()) { cellnumber++; break; }   // stepup 1
 						}
 						numpass[cellnumber]++;
 					}
-					if (numpass[cellnumber] > 9)
-					{
+					if (numpass[cellnumber] > 9) {
 						// this number resulted in invalid puzzle position at previous cell
-						while (cellnumber >= 0)
-						{
-							if (numpass[cellnumber] > 9)
-							{
+						while (cellnumber >= 0) {
+							if (numpass[cellnumber] > 9) {
 								puzzlestring.Set(cellnumber, '.');  // reset current cell
 								numpass[cellnumber] = 0;
 								cellnumber--;
@@ -303,13 +279,13 @@ namespace Sudoku.Puzzle
 		}
 
 		bool IsUnSolvable() {
-			foreach (var cell in this.puzzle)
-			{
+			foreach (var cell in this.puzzle) {
 				if (cell.Value == BitMask[(int)Bit.undefined]) return true;
 			}
 			return false;
 		}
 
+		// check cell for one only possible number
 		bool ResolveCellSingle() {
 			int bitvalue;
 			int issingle;
@@ -317,8 +293,7 @@ namespace Sudoku.Puzzle
 				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
 					issingle = 0;
 					bitvalue = 0;
-					while (bitvalue++ < 9)
-					{
+					while (bitvalue++ < 9) {
 						if ((cell.Value & BitMask[bitvalue]) != 0) {
 							if (issingle != 0) { issingle = 0; break; }
 							issingle = BitMask[bitvalue];
@@ -330,15 +305,13 @@ namespace Sudoku.Puzzle
 			return false;
 		}
 
+		// check cluster cells for one only possible number
 		bool ResolveClusterSingle() {
 			int singleMask, accMask, filterMask;
-			foreach (var cluster in this.clusters)
-			{
+			foreach (var cluster in this.clusters) {
 				accMask = 0; filterMask = 0;
-				foreach (var cell in cluster)
-				{
-					if ((cell.Value & BitMask[(int)Bit.undefined]) != 0)
-					{
+				foreach (var cell in cluster) {
+					if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
 						filterMask |= accMask & cell.Value;
 						accMask |= cell.Value;
 					}
@@ -352,8 +325,7 @@ namespace Sudoku.Puzzle
 						if ((singleMask & BitMask[numberbit]) != 0) { singleMask = BitMask[numberbit]; break; }
 						numberbit++;
 					}
-					foreach (var cell in cluster)
-					{
+					foreach (var cell in cluster) {
 						if ((cell.Value & singleMask) != 0) { cell.Value = singleMask; this.UpdateMask(cell); return true; }
 					}
 				}
@@ -361,7 +333,17 @@ namespace Sudoku.Puzzle
 			return false;
 		}
 
-		bool ResolveExcludeMaskPair() {
+		// This will not resolve any number, but check for possibility to exclude possible number masks
+		// return true if any cell mask bits has been updated or false if it was not able to exclude any mask bits
+		bool ResolveExcludeMask() {
+			bool updated = false;
+			if (ResolveClusterTraversePairMask()) updated = true;
+			if (ResolveClusterPairMask()) updated = true;
+			return updated;
+		}
+
+		// check for pair cells within a cluster that can hold same number & check traverse cluster for same cells
+		bool ResolveClusterTraversePairMask() {
 			bool updated = false;
 			int count, numberbit, maskBit;
 			SudokuCell cell1 = null, cell2 = null;
@@ -369,7 +351,7 @@ namespace Sudoku.Puzzle
 			// loop through all clusters (row / col / square)
 			foreach (var cluster in this.clusters) {
 				numberbit = 1;
-				// loop through all numbers
+				// loop through all numbers 
 				while (numberbit <= 9) {
 					count = 0;
 					maskBit = BitMask[numberbit];
@@ -384,19 +366,16 @@ namespace Sudoku.Puzzle
 						foreach (var tcluster in this.clusters) {   // find traverse cluster
 							count = 0;
 							if (cluster != tcluster) { // do not compare itself
-								foreach (var tcell in tcluster)
-								{
+								foreach (var tcell in tcluster) {
 									if ((tcell == cell1) || (tcell == cell2)) count++;
 								}
 								if (count == 2) {
-									foreach (var tcell in tcluster)
-									{
+									foreach (var tcell in tcluster) {
 										if ((tcell != cell1) && (tcell != cell2) && ((tcell.Value & maskBit) != 0)) {
 											tcell.Value ^= maskBit;
 											updated = true;
 										}
 									}
-
 								}
 							}
 						}
@@ -404,9 +383,67 @@ namespace Sudoku.Puzzle
 					numberbit++;
 				}
 			}
-
 			return updated;
 		}
+
+
+		// check for pair cells within a cluster that hold same two numbers
+		bool ResolveClusterPairMask()
+		{
+			bool updated = false;
+			int count, maskCellPair;
+			SudokuCell cell1, cell2;
+			int bit1, bit2;
+
+			// loop through all clusters (row / col / square)
+			foreach (var cluster in this.clusters)
+			{
+				// find numbers that occure exactly twice within cluster
+				maskCellPair = 0;
+				bit1 = BitMask[(int)Bit.no1];
+				while (bit1 != BitMask[(int)Bit.undefined]) {
+					count = 0;
+					foreach (var cell in cluster) {
+						if ((cell.Value & bit1) != 0) count++;
+					}
+					if (count == 2) maskCellPair |= bit1;    // store numbers that occure twice within cluster
+					bit1 <<= 1;
+				}
+
+				// find for matching cells and filter any additional mask bits
+				if (maskCellPair != 0) {
+					bit1 = BitMask[(int)Bit.no1];
+					while (bit1 != BitMask[(int)Bit.undefined])	{
+						if ((bit1 & maskCellPair) != 0)	{
+							bit2 = bit1 << 1;
+							while (bit2 != BitMask[(int)Bit.undefined])	{
+								if ((bit2 & maskCellPair) != 0) {
+									// found two numbers that occure twice in cluster
+									var applyMask = bit1 | bit2;
+									cell1 = null; cell2 = null;
+									foreach (var cell in cluster) {
+										if ((cell.Value & applyMask) == applyMask) {
+											if (cell1 == null) cell1 = cell;
+											else cell2 = cell;
+										}
+									}
+									if ((cell1 != null) && (cell2 != null)) {
+										// found a matching pair - apply filter
+										applyMask |= BitMask[(int)Bit.undefined];
+										if (cell1.Value != applyMask) { cell1.Value = applyMask; updated = true; }
+										if (cell2.Value != applyMask) { cell2.Value = applyMask; updated = true; }
+									}
+								}
+								bit2 <<= 1;
+							}
+						}
+						bit1 <<= 1;
+					}
+				}
+			}
+			return updated;
+		}
+
 
 		void UpdateMask(SudokuCell cell) {
 			if (cell == null) return;
