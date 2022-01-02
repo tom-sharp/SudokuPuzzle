@@ -18,6 +18,9 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.03	Added cluster twin cell mask exclusion rule
+ *			Added cluster traverse tripple cell mask exclusion rule
+ *			
  *	0.02	Removed pre-run of rule based algorithm from BackTrack algorithm 
  *			Improved rule based algorithm
  *			Retired NumPass algorithm as it has about same performance as backtrack with rules algorithm
@@ -81,14 +84,15 @@ namespace Sudoku.Puzzle
 		/// Copy sudokupuzzle to this puzzle
 		/// </summary>
 		/// <param name="sudokupuzzle"></param>
-		public void Copy(SudokuPuzzle sudokupuzzle) {
-			if (sudokupuzzle == null) { this.SetPuzzle(""); return; }
+		public SudokuPuzzle Copy(SudokuPuzzle sudokupuzzle) {
+			if (sudokupuzzle == null) { this.SetPuzzle(""); return this; }
 			SudokuCell cell1 = sudokupuzzle.puzzle.FirstCell(), cell2 = this.puzzle.FirstCell();
 			while (cell1 != null) {
 				cell2.Value = cell1.Value;
 				cell1 = sudokupuzzle.puzzle.NextCell();
 				cell2 = this.puzzle.NextCell();
 			}
+			return this;
 		}
 
 		/// <summary>
@@ -113,7 +117,7 @@ namespace Sudoku.Puzzle
 		/// other characters such as CF/LF or space are ignored. if puzzle string is shorter than board size of 81 cells, the board filled out with undefined cells
 		/// </summary>
 		/// <param name="puzzle"></param>
-		public void SetPuzzle(string puzzle)
+		public SudokuPuzzle SetPuzzle(string puzzle)
 		{
 			int count = 0;
 			if (puzzle != null)
@@ -131,6 +135,7 @@ namespace Sudoku.Puzzle
 			}
 			while (count < 81) this.puzzle.Cell(count++).Value = BitMask[(int)Bit.all];
 			foreach (var cell in this.puzzle) if ((cell.Value & BitMask[(int)Bit.undefined]) == 0) UpdateMask(cell);
+			return this;
 		}
 
 		/// <summary>
@@ -336,10 +341,11 @@ namespace Sudoku.Puzzle
 		// This will not resolve any number, but check for possibility to exclude possible number masks
 		// return true if any cell mask bits has been updated or false if it was not able to exclude any mask bits
 		bool ResolveExcludeMask() {
-			bool updated = false;
-			if (ResolveClusterTraversePairMask()) updated = true;
-			if (ResolveClusterPairMask()) updated = true;
-			return updated;
+			if (ResolveClusterTraversePairMask()) return true;
+			if (ResolveClusterTraverseTrippleMask()) return true;
+			if (ResolveClusterPairMask()) return true;
+			if (ResolveClusterTwinMask()) return true;
+			return false;
 		}
 
 		// check for pair cells within a cluster that can hold same number & check traverse cluster for same cells
@@ -356,7 +362,7 @@ namespace Sudoku.Puzzle
 					count = 0;
 					maskBit = BitMask[numberbit];
 					foreach (var cell in cluster) {
-						if ((cell.Value & maskBit) != 0) {    // count occurances of in cluster
+						if (((cell.Value & maskBit) != 0) && ((cell.Value & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
 							count++;
 							if (count == 1) cell1 = cell;
 							else if (count == 2) cell2 = cell;
@@ -381,6 +387,91 @@ namespace Sudoku.Puzzle
 						}
 					}
 					numberbit++;
+				}
+			}
+			return updated;
+		}
+
+		// check for three cells within a cluster with possible same number & check traverse cluster for same cells
+		bool ResolveClusterTraverseTrippleMask() {
+			bool updated = false;
+			int counter, numberbit, maskBit;
+			SudokuCell cell1 = null, cell2 = null, cell3 = null;
+
+			// loop through all clusters (row / col / square)
+			foreach (var cluster in this.clusters) {
+				numberbit = 1;
+				// loop through all numbers 
+				while (numberbit <= 9) {
+					counter = 0;
+					maskBit = BitMask[numberbit];
+					foreach (var cell in cluster) {
+						if (((cell.Value & maskBit) != 0) && ((cell.Value & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
+							counter++;
+							if (counter == 1) cell1 = cell;
+							else if (counter == 2) cell2 = cell;
+							else if (counter == 3) cell3 = cell;
+						}
+					}
+					if (counter == 3) {
+						foreach (var tcluster in this.clusters)	{   // find traverse cluster
+							counter = 0;
+							if (cluster != tcluster) { // do not compare itself
+								foreach (var tcell in tcluster)	{
+									if ((tcell == cell1) || (tcell == cell2) || (tcell == cell3)) counter++;
+								}
+								if (counter == 3)	{
+									foreach (var tcell in tcluster) {
+										if ((tcell != cell1) && (tcell != cell2) && (tcell != cell3) && ((tcell.Value & maskBit) != 0)) {
+											tcell.Value ^= maskBit;
+											updated = true;
+										}
+									}
+								}
+							}
+						}
+					}
+					numberbit++;
+				}
+			}
+			return updated;
+		}
+
+		// check for pair of cell that look exacly the same with two possible numbers
+		bool ResolveClusterTwinMask() {
+			bool updated = false;
+			SudokuCell cell1, cell2;
+			int bit1, bit2;
+
+			// loop through all clusters (row / col / square)
+			foreach (var cluster in this.clusters) {
+				// test all combos of two numbers
+				bit1 = BitMask[(int)Bit.no1];
+				while (bit1 != BitMask[(int)Bit.undefined]) {
+					bit2 = bit1 << 1;
+					while (bit2 != BitMask[(int)Bit.undefined]) {
+						var applyMask = bit1 | bit2 | BitMask[(int)Bit.undefined];
+						cell1 = null; cell2 = null;
+						// look through all cells in cluster to see if there is twin pair
+						foreach (var cell in cluster) {
+							if (cell.Value == applyMask) {
+								if (cell1 == null) cell1 = cell;
+								else cell2 = cell;
+							}
+						}
+						if (cell2 != null) {
+							// a pair was found - apply mask filter for all other cells in cluster
+							foreach (var cell in cluster) {
+								if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
+									if ((cell != cell1) && (cell != cell2) && ((cell.Value & (applyMask & BitMask[(int)Bit.allNumbers])) != 0)) {
+										cell.Value &= (applyMask ^ BitMask[(int)Bit.allNumbers]); updated = true;
+									}
+								}
+							}
+						}
+						bit2 <<= 1;
+					}
+					bit1 <<= 1;
 				}
 			}
 			return updated;
