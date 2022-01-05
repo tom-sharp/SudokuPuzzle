@@ -8,7 +8,7 @@ using Syslib;
 
 
 /*
- * SudokuPuzzle solver provide three algorithms to solve sudoku puzzles;
+ * SudokuPuzzle solver provide two algorithms to solve sudoku puzzles;
  * 
  *	1.	Rule based Algorithm uses three rules to solve puzzle and is the fastest algorithm.
  *		The rules are: Cell Singles, Cluster Singles, Cluster cells Traverse Exclusions
@@ -18,6 +18,9 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.05	Improved performance of sudoku generation
+ *			Added countinh of numbers in puzzle
+ *	0.04	Added Create sudoku puzzles
  *	0.03	Added cluster twin cell mask exclusion rule
  *			Added cluster traverse tripple cell mask exclusion rule
  *			
@@ -33,15 +36,10 @@ using Syslib;
 namespace Sudoku.Puzzle
 {
 
-	class SudokuCell {
-		public int Value { get; set; }
-	}
 
-	public class SudokuPuzzle
-	{
+	public class SudokuPuzzle {
 
-		public SudokuPuzzle()
-		{
+		public SudokuPuzzle() {
 			puzzle = new CCellObjects<SudokuCell>( columns:9, rows:9);   // create grid of 9x9 cells
 			clusters = new CList<CList<SudokuCell>>();
 
@@ -162,14 +160,38 @@ namespace Sudoku.Puzzle
 			if ((number <= 0) || (number > 9)) return "bad number";
 			var temp = new CStr(82);
 			int cellvalue = BitMask[number];
-			foreach (var cell in this.puzzle)
-			{
+			foreach (var cell in this.puzzle) {
 				if (((cell.Value & cellvalue) != 0) && (cell.Value & BitMask[(int)Bit.undefined]) != 0) {
 					temp.Append((byte)(number + '0'));
 				}
 				else temp.Append('.');
 			}
 			return temp.ToString();
+		}
+
+		/// <summary>
+		///  count number of occurances  of number in puzzle
+		/// </summary>
+		/// <param name="number"></param>
+		/// <returns>returns count of number found in puzzle</returns>
+		public int GetNumberCount(int number = 0) {
+			if ((number < 0) || (number > 9)) return 0;
+			int count = 0, cellvalue;
+			if (number == 0) {
+				// count all defined numbers
+				cellvalue = BitMask[(int)Bit.undefined];
+				foreach (var cell in this.puzzle) {
+					if ((cell.Value & cellvalue) == 0) count++;
+				}
+			}
+			else {
+				// count only requested number
+				cellvalue = BitMask[number];
+				foreach (var cell in this.puzzle) {
+					if (cell.Value == cellvalue) count++;
+				}
+			}
+			return count;
 		}
 
 		/// <summary>
@@ -194,6 +216,7 @@ namespace Sudoku.Puzzle
 			if (!this.IsValid()) return -1;
 			return count;
 		}
+
 
 		/// <summary>
 		/// use backtrack algorithm to solve puzzle
