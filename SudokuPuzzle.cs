@@ -18,6 +18,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.06	Added another three random numbers to generate random sudoku, lower chance of dublicate puzzles
  *	0.05	Improved performance of sudoku generation
  *			Added countinh of numbers in puzzle
  *	0.04	Added Create sudoku puzzles
@@ -59,8 +60,7 @@ namespace Sudoku.Puzzle
 			row = 0;
 			while (row < 9) {
 				col = 0;
-				while (col < 9)
-				{
+				while (col < 9) {
 					clusters.Add(this.puzzle.ClusterCells(col, row, width: 3, height: 3));   // square clusters
 					col += 3;
 				}
@@ -69,12 +69,11 @@ namespace Sudoku.Puzzle
 
 			// reset all cells
 			foreach (var cell in this.puzzle) {
-				cell.Value = BitMask[(int)Bit.all];
+				cell.BitMask = BitMask[(int)Bit.all];
 			}
 		}
 
-		public SudokuPuzzle(string puzzle) : this()
-		{
+		public SudokuPuzzle(string puzzle) : this() {
 			this.SetPuzzle(puzzle);
 		}
 
@@ -86,7 +85,7 @@ namespace Sudoku.Puzzle
 			if (sudokupuzzle == null) { this.SetPuzzle(""); return this; }
 			SudokuCell cell1 = sudokupuzzle.puzzle.FirstCell(), cell2 = this.puzzle.FirstCell();
 			while (cell1 != null) {
-				cell2.Value = cell1.Value;
+				cell2.BitMask = cell1.BitMask;
 				cell1 = sudokupuzzle.puzzle.NextCell();
 				cell2 = this.puzzle.NextCell();
 			}
@@ -97,13 +96,11 @@ namespace Sudoku.Puzzle
 		/// Make a copy of current puzzle
 		/// </summary>
 		/// <returns></returns>
-		public SudokuPuzzle Copy()
-		{
+		public SudokuPuzzle Copy() {
 			var newPuzzle = new SudokuPuzzle();
 			SudokuCell cell1 = this.puzzle.FirstCell(), cell2 = newPuzzle.puzzle.FirstCell();
-			while (cell1 != null)
-			{
-				cell2.Value = cell1.Value;
+			while (cell1 != null) {
+				cell2.BitMask = cell1.BitMask;
 				cell1 = this.puzzle.NextCell();
 				cell2 = newPuzzle.puzzle.NextCell();
 			}
@@ -115,24 +112,20 @@ namespace Sudoku.Puzzle
 		/// other characters such as CF/LF or space are ignored. if puzzle string is shorter than board size of 81 cells, the board filled out with undefined cells
 		/// </summary>
 		/// <param name="puzzle"></param>
-		public SudokuPuzzle SetPuzzle(string puzzle)
-		{
+		public SudokuPuzzle SetPuzzle(string puzzle) {
 			int count = 0;
-			if (puzzle != null)
-			{
-				foreach (var ch in puzzle)
-				{
-					if ((ch >= '0' && ch <= '9') || (ch == 'x') || (ch == 'X') || (ch == '.'))
-					{
-						if ((ch == '0') || (ch == 'x') || (ch == 'X') || (ch == '.')) this.puzzle.Cell(count).Value = BitMask[(int)Bit.all];
-						else this.puzzle.Cell(count).Value = BitMask[ch - '0'];
+			if (puzzle != null) {
+				foreach (var ch in puzzle) {
+					if ((ch >= '0' && ch <= '9') || (ch == 'x') || (ch == 'X') || (ch == '.')) {
+						if ((ch == '0') || (ch == 'x') || (ch == 'X') || (ch == '.')) this.puzzle.Cell(count).BitMask = BitMask[(int)Bit.all];
+						else this.puzzle.Cell(count).BitMask = BitMask[ch - '0'];
 						count++;
 					}
 					if (count == 81) break;
 				}
 			}
-			while (count < 81) this.puzzle.Cell(count++).Value = BitMask[(int)Bit.all];
-			foreach (var cell in this.puzzle) if ((cell.Value & BitMask[(int)Bit.undefined]) == 0) UpdateMask(cell);
+			while (count < 81) this.puzzle.Cell(count++).BitMask = BitMask[(int)Bit.all];
+			foreach (var cell in this.puzzle) if ((cell.BitMask & BitMask[(int)Bit.undefined]) == 0) UpdateMask(cell);
 			return this;
 		}
 
@@ -144,9 +137,8 @@ namespace Sudoku.Puzzle
 			var temp = new CStr(82);
 			int cellvalue;
 			foreach (var cell in this.puzzle) {
-				cellvalue = BitMaskValue(cell.Value);
-				if ((cellvalue == 0) || (cellvalue == 10)) temp.Append('.');
-				else temp.Append((byte)(cellvalue + '0'));
+				if ((cellvalue = cell.Number) > 0) temp.Append((byte)(cellvalue + '0'));
+				else temp.Append('.');
 			}
 			return temp.ToString();
 		}
@@ -161,7 +153,7 @@ namespace Sudoku.Puzzle
 			var temp = new CStr(82);
 			int cellvalue = BitMask[number];
 			foreach (var cell in this.puzzle) {
-				if (((cell.Value & cellvalue) != 0) && (cell.Value & BitMask[(int)Bit.undefined]) != 0) {
+				if (((cell.BitMask & cellvalue) != 0) && (cell.BitMask & BitMask[(int)Bit.undefined]) != 0) {
 					temp.Append((byte)(number + '0'));
 				}
 				else temp.Append('.');
@@ -181,14 +173,14 @@ namespace Sudoku.Puzzle
 				// count all defined numbers
 				cellvalue = BitMask[(int)Bit.undefined];
 				foreach (var cell in this.puzzle) {
-					if ((cell.Value & cellvalue) == 0) count++;
+					if ((cell.BitMask & cellvalue) == 0) count++;
 				}
 			}
 			else {
 				// count only requested number
 				cellvalue = BitMask[number];
 				foreach (var cell in this.puzzle) {
-					if (cell.Value == cellvalue) count++;
+					if (cell.BitMask == cellvalue) count++;
 				}
 			}
 			return count;
@@ -236,7 +228,7 @@ namespace Sudoku.Puzzle
 			while (cellnumber < 81) {
 				cell = this.puzzle.Cell(cellnumber);
 				// if number is undefined - test possible numbers
-				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) numpass[cellnumber] = 0;
+				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) numpass[cellnumber] = 0;
 				else numpass[cellnumber] = -1;
 				cellnumber++;
 			}
@@ -247,7 +239,7 @@ namespace Sudoku.Puzzle
 					cell = this.puzzle.Cell(cellnumber);
 					numpass[cellnumber]++;
 					while (numpass[cellnumber] <= 9) {
-						if ((cell.Value & BitMask[numpass[cellnumber]]) != 0) {
+						if ((cell.BitMask & BitMask[numpass[cellnumber]]) != 0) {
 							puzzlestring.Set(cellnumber, (byte)(numpass[cellnumber] + '0'));
 							NumPassPuzzle.SetPuzzle(puzzlestring.ToString());
 							NumPassPuzzle.ResolveRules();
@@ -284,9 +276,9 @@ namespace Sudoku.Puzzle
 			foreach (var cluster in this.clusters) {
 				checkMask = 0;
 				foreach (var cell in cluster) {
-					if ((cell.Value & BitMask[(int)Bit.undefined]) == 0) {
-						if ((cell.Value & checkMask) != 0) return false;
-						checkMask |= cell.Value;
+					if ((cell.BitMask & BitMask[(int)Bit.undefined]) == 0) {
+						if ((cell.BitMask & checkMask) != 0) return false;
+						checkMask |= cell.BitMask;
 					}
 				}
 			}
@@ -301,14 +293,14 @@ namespace Sudoku.Puzzle
 		public bool IsSolved()
 		{
 			foreach (var cell in this.puzzle) {
-				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) return false;
+				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) return false;
 			}
 			return this.IsValid();
 		}
 
 		bool IsUnSolvable() {
 			foreach (var cell in this.puzzle) {
-				if (cell.Value == BitMask[(int)Bit.undefined]) return true;
+				if (cell.BitMask == BitMask[(int)Bit.undefined]) return true;
 			}
 			return false;
 		}
@@ -318,16 +310,16 @@ namespace Sudoku.Puzzle
 			int bitvalue;
 			int issingle;
 			foreach (var cell in this.puzzle) {
-				if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
+				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) {
 					issingle = 0;
 					bitvalue = 0;
 					while (bitvalue++ < 9) {
-						if ((cell.Value & BitMask[bitvalue]) != 0) {
+						if ((cell.BitMask & BitMask[bitvalue]) != 0) {
 							if (issingle != 0) { issingle = 0; break; }
 							issingle = BitMask[bitvalue];
 						}
 					}
-					if (issingle != 0) { cell.Value = issingle; UpdateMask(cell); return true; }
+					if (issingle != 0) { cell.BitMask = issingle; UpdateMask(cell); return true; }
 				}
 			}
 			return false;
@@ -339,9 +331,9 @@ namespace Sudoku.Puzzle
 			foreach (var cluster in this.clusters) {
 				accMask = 0; filterMask = 0;
 				foreach (var cell in cluster) {
-					if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
-						filterMask |= accMask & cell.Value;
-						accMask |= cell.Value;
+					if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) {
+						filterMask |= accMask & cell.BitMask;
+						accMask |= cell.BitMask;
 					}
 				}
 
@@ -354,7 +346,7 @@ namespace Sudoku.Puzzle
 						numberbit++;
 					}
 					foreach (var cell in cluster) {
-						if ((cell.Value & singleMask) != 0) { cell.Value = singleMask; this.UpdateMask(cell); return true; }
+						if ((cell.BitMask & singleMask) != 0) { cell.BitMask = singleMask; this.UpdateMask(cell); return true; }
 					}
 				}
 			}
@@ -385,7 +377,7 @@ namespace Sudoku.Puzzle
 					count = 0;
 					maskBit = BitMask[numberbit];
 					foreach (var cell in cluster) {
-						if (((cell.Value & maskBit) != 0) && ((cell.Value & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
+						if (((cell.BitMask & maskBit) != 0) && ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
 							count++;
 							if (count == 1) cell1 = cell;
 							else if (count == 2) cell2 = cell;
@@ -400,8 +392,8 @@ namespace Sudoku.Puzzle
 								}
 								if (count == 2) {
 									foreach (var tcell in tcluster) {
-										if ((tcell != cell1) && (tcell != cell2) && ((tcell.Value & maskBit) != 0)) {
-											tcell.Value ^= maskBit;
+										if ((tcell != cell1) && (tcell != cell2) && ((tcell.BitMask & maskBit) != 0)) {
+											tcell.BitMask ^= maskBit;
 											updated = true;
 										}
 									}
@@ -429,7 +421,7 @@ namespace Sudoku.Puzzle
 					counter = 0;
 					maskBit = BitMask[numberbit];
 					foreach (var cell in cluster) {
-						if (((cell.Value & maskBit) != 0) && ((cell.Value & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
+						if (((cell.BitMask & maskBit) != 0) && ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0)) {    // count occurances of in cluster
 							counter++;
 							if (counter == 1) cell1 = cell;
 							else if (counter == 2) cell2 = cell;
@@ -445,8 +437,8 @@ namespace Sudoku.Puzzle
 								}
 								if (counter == 3)	{
 									foreach (var tcell in tcluster) {
-										if ((tcell != cell1) && (tcell != cell2) && (tcell != cell3) && ((tcell.Value & maskBit) != 0)) {
-											tcell.Value ^= maskBit;
+										if ((tcell != cell1) && (tcell != cell2) && (tcell != cell3) && ((tcell.BitMask & maskBit) != 0)) {
+											tcell.BitMask ^= maskBit;
 											updated = true;
 										}
 									}
@@ -477,7 +469,7 @@ namespace Sudoku.Puzzle
 						cell1 = null; cell2 = null;
 						// look through all cells in cluster to see if there is twin pair
 						foreach (var cell in cluster) {
-							if (cell.Value == applyMask) {
+							if (cell.BitMask == applyMask) {
 								if (cell1 == null) cell1 = cell;
 								else cell2 = cell;
 							}
@@ -485,9 +477,9 @@ namespace Sudoku.Puzzle
 						if (cell2 != null) {
 							// a pair was found - apply mask filter for all other cells in cluster
 							foreach (var cell in cluster) {
-								if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) {
-									if ((cell != cell1) && (cell != cell2) && ((cell.Value & (applyMask & BitMask[(int)Bit.allNumbers])) != 0)) {
-										cell.Value &= (applyMask ^ BitMask[(int)Bit.allNumbers]); updated = true;
+								if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) {
+									if ((cell != cell1) && (cell != cell2) && ((cell.BitMask & (applyMask & BitMask[(int)Bit.allNumbers])) != 0)) {
+										cell.BitMask &= (applyMask ^ BitMask[(int)Bit.allNumbers]); updated = true;
 									}
 								}
 							}
@@ -502,23 +494,21 @@ namespace Sudoku.Puzzle
 
 
 		// check for pair cells within a cluster that hold same two numbers
-		bool ResolveClusterPairMask()
-		{
+		bool ResolveClusterPairMask() {
 			bool updated = false;
 			int count, maskCellPair;
 			SudokuCell cell1, cell2;
 			int bit1, bit2;
 
 			// loop through all clusters (row / col / square)
-			foreach (var cluster in this.clusters)
-			{
+			foreach (var cluster in this.clusters) {
 				// find numbers that occure exactly twice within cluster
 				maskCellPair = 0;
 				bit1 = BitMask[(int)Bit.no1];
 				while (bit1 != BitMask[(int)Bit.undefined]) {
 					count = 0;
 					foreach (var cell in cluster) {
-						if ((cell.Value & bit1) != 0) count++;
+						if ((cell.BitMask & bit1) != 0) count++;
 					}
 					if (count == 2) maskCellPair |= bit1;    // store numbers that occure twice within cluster
 					bit1 <<= 1;
@@ -536,7 +526,7 @@ namespace Sudoku.Puzzle
 									var applyMask = bit1 | bit2;
 									cell1 = null; cell2 = null;
 									foreach (var cell in cluster) {
-										if ((cell.Value & applyMask) == applyMask) {
+										if ((cell.BitMask & applyMask) == applyMask) {
 											if (cell1 == null) cell1 = cell;
 											else cell2 = cell;
 										}
@@ -544,8 +534,8 @@ namespace Sudoku.Puzzle
 									if ((cell1 != null) && (cell2 != null)) {
 										// found a matching pair - apply filter
 										applyMask |= BitMask[(int)Bit.undefined];
-										if (cell1.Value != applyMask) { cell1.Value = applyMask; updated = true; }
-										if (cell2.Value != applyMask) { cell2.Value = applyMask; updated = true; }
+										if (cell1.BitMask != applyMask) { cell1.BitMask = applyMask; updated = true; }
+										if (cell2.BitMask != applyMask) { cell2.BitMask = applyMask; updated = true; }
 									}
 								}
 								bit2 <<= 1;
@@ -559,9 +549,11 @@ namespace Sudoku.Puzzle
 		}
 
 
+		// Update BitMask for cells included in same cluster as the cell provided.
+		// Removing the bit number for cells defined number
 		void UpdateMask(SudokuCell cell) {
 			if (cell == null) return;
-			if ((cell.Value & BitMask[(int)Bit.undefined]) != 0) return;
+			if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) return;
 			bool applyToCluster;
 			int applyMask;
 			foreach (var cluster in this.clusters) {
@@ -569,26 +561,15 @@ namespace Sudoku.Puzzle
 				applyMask = BitMask[(int)Bit.undefined];
 				foreach (var c in cluster) {
 					if (c == cell) applyToCluster = true;
-					if ((c.Value & BitMask[(int)Bit.undefined]) == 0) applyMask |= c.Value; 
+					if ((c.BitMask & BitMask[(int)Bit.undefined]) == 0) applyMask |= c.BitMask; 
 				}
 				if (applyToCluster) {
 					applyMask ^= BitMask[(int)Bit.allNumbers];
 					foreach (var c in cluster) {
-						if ((c.Value & BitMask[(int)Bit.undefined]) != 0) c.Value &= applyMask;
+						if ((c.BitMask & BitMask[(int)Bit.undefined]) != 0) c.BitMask &= applyMask;
 					}
 				}
 			}
-		}
-
-		int BitMaskValue(int mask)
-		{
-			int count = (int)Bit.undefined;
-			while (count > 0)
-			{
-				if ((mask & BitMask[count]) != 0) return count;
-				count--;
-			}
-			return 0;
 		}
 
 		enum Bit { empty = 0, no1, no2, no3, no4, no5, no6, no7, no8, no9, undefined, all, allNumbers };

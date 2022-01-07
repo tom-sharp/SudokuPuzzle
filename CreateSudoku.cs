@@ -103,6 +103,18 @@ namespace Sudoku.Puzzle
 			return targetsudoku.SetPuzzle(newpuzzle.ToString());
 		}
 
+
+		// generate a random sudoku by filling random numbers to 
+		//
+		//	rrr ... ...
+		//	rrr ... ...
+		//	rrr ... ...
+		//	... r.. ...
+		//	... .r. ...
+		//	... ..r ...
+		//	... ... r..
+		//	... ... .r.
+		//	... ... ..r
 		SudokuPuzzle FillRandomSudoku() {
 			var newsudoku = new SudokuPuzzle();
 			var workpuzzle = new CStr();
@@ -126,6 +138,9 @@ namespace Sudoku.Puzzle
 				workpuzzle.Set(30, (byte)('0' + rnd.RandomNumber(1, 9)));
 				workpuzzle.Set(40, (byte)('0' + rnd.RandomNumber(1, 9)));
 				workpuzzle.Set(50, (byte)('0' + rnd.RandomNumber(1, 9)));
+				workpuzzle.Set(60, (byte)('0' + rnd.RandomNumber(1, 9)));
+				workpuzzle.Set(70, (byte)('0' + rnd.RandomNumber(1, 9)));
+				workpuzzle.Set(80, (byte)('0' + rnd.RandomNumber(1, 9)));
 
 				if (newsudoku.SetPuzzle(workpuzzle.ToString()).ResolveBacktrack()) break;
 			}
