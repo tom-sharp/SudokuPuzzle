@@ -18,6 +18,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.07	Added extended check for Unsolvable puzzles
  *	0.06	Added another three random numbers to generate random sudoku, lower chance of dublicate puzzles
  *	0.05	Improved performance of sudoku generation
  *			Added countinh of numbers in puzzle
@@ -299,8 +300,20 @@ namespace Sudoku.Puzzle
 		}
 
 		bool IsUnSolvable() {
+			int possibleMask = 0x0000;
 			foreach (var cell in this.puzzle) {
+				// check if there is a cell that is not defined, and have no possible numbers available
 				if (cell.BitMask == BitMask[(int)Bit.undefined]) return true;
+				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) possibleMask |= cell.BitMask;
+			}
+			// check each number to see there is available possible positions if not all numbers are defined
+			int number = 0x0001;
+			int count = 0;
+			while (count++ < 9) {
+				if ((number & possibleMask) == 0) {
+					if (this.GetNumberCount(count) < 9) return true;
+				}
+				number <<= 1;
 			}
 			return false;
 		}
