@@ -13,12 +13,15 @@ using Syslib;
  *	1.	Rule based Algorithm uses three rules to solve puzzle and is the fastest algorithm.
  *		The rules are: Cell Singles, Cluster Singles, Cluster cells Traverse Exclusions
  *		
- *	2.	BackTrack Algorithm (enhanched). This is the slowest algorithm, testing all possible numbers
- *		and will solve any valid puzzle.
+ *	2.	NumPass Algorithm. Have same type of behaivior as backtrack, but have a lot
+ *		better performance. Make use of logic rules, but guesses qualified selected numbers
+ *		and will solve any valid puzzle, that might not be solved by the logic rule algorithm.
  *		
  *		
  *	ver	
- *	0.08	Improved backtrack performance
+ *	0.08	Improved NumPass performance
+ *			Renamed BackTrack Algorithm back to NumPass as it deviates from backtrack to much
+ *			BugFix in Numpass - possible Out of index issue if puzzle was constructed in a special way
  *	0.07	Added extended check for Unsolvable puzzles
  *	0.06	Added another three random numbers to generate random sudoku, lower chance of dublicate puzzles
  *	0.05	Improved performance of sudoku generation
@@ -213,13 +216,14 @@ namespace Sudoku.Puzzle
 
 
 		/// <summary>
-		/// use backtrack algorithm to solve puzzle
+		/// use NumPass algorithm to solve puzzle (it still use logic rules for performance increase)
 		/// </summary>
 		/// <returns>returns true if puzzle is solved or false if puzzle is invalid or unsolvable</returns>
-		public bool ResolveBacktrack() {
+		public bool ResolveNumPass() {
+			this.ResolveRules();
 			if (this.IsSolved()) return true;
 			if (!this.IsValid()) return false;
-
+			
 			SudokuPuzzle NumPassPuzzle = new SudokuPuzzle();
 			SudokuCell cell = null;
 			int cellnumber;
@@ -250,7 +254,7 @@ namespace Sudoku.Puzzle
 						}
 						numpass[cellnumber]++;
 					}
-					if (numpass[cellnumber] > 9) {
+					if ((cellnumber < 81) && (numpass[cellnumber] > 9)) {
 						// this number resulted in invalid puzzle position at previous cell
 						while (cellnumber >= 0) {
 							if (numpass[cellnumber] > 9) {

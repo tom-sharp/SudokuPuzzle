@@ -142,7 +142,7 @@ namespace Sudoku.Puzzle
 				workpuzzle.Set(70, (byte)('0' + rnd.RandomNumber(1, 9)));
 				workpuzzle.Set(80, (byte)('0' + rnd.RandomNumber(1, 9)));
 
-				if (newsudoku.SetPuzzle(workpuzzle.ToString()).ResolveBacktrack()) break;
+				if (newsudoku.SetPuzzle(workpuzzle.ToString()).ResolveNumPass()) break;
 			}
 			return newsudoku;
 		}
