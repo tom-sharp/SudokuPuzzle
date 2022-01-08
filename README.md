@@ -6,3 +6,5 @@ using logic rules for good performance or NumPass to solve any puzzles not able 
 
 detection of invalid or unsolvable puzzles
 
+This version no longer support BackTrack as its using NumPass instead
+
