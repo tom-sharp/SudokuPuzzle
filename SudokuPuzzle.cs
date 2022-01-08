@@ -18,6 +18,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.08	Improved backtrack performance
  *	0.07	Added extended check for Unsolvable puzzles
  *	0.06	Added another three random numbers to generate random sudoku, lower chance of dublicate puzzles
  *	0.05	Improved performance of sudoku generation
@@ -225,6 +226,7 @@ namespace Sudoku.Puzzle
 			int[] numpass = new int[81];    // current numberguess
 			var puzzlestring = new CStr(this.GetPuzzle());
 
+			// select what cells should be target for number guesses (0) and which to be ignored to (-1)
 			cellnumber = 0;
 			while (cellnumber < 81) {
 				cell = this.puzzle.Cell(cellnumber);
@@ -260,9 +262,9 @@ namespace Sudoku.Puzzle
 							else cellnumber--;
 						}
 					}
+					if (NumPassPuzzle.IsSolved()) { this.SetPuzzle(NumPassPuzzle.GetPuzzle()); return true; }
 				}
 				else cellnumber++;
-				if (NumPassPuzzle.IsSolved()) { this.SetPuzzle(NumPassPuzzle.GetPuzzle()); return true; }
 			}
 			return false;
 		}
