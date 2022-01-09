@@ -19,6 +19,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.09	Added additional support to create puzzles from a base solution (not only random)
  *	0.08	Improved NumPass performance
  *			Renamed BackTrack Algorithm back to NumPass as it deviates from backtrack to much
  *			BugFix in Numpass - possible Out of index issue if puzzle was constructed in a special way

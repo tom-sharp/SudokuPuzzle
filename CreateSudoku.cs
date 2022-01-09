@@ -10,12 +10,25 @@ namespace Sudoku.Puzzle
 {
 	public class CreateSudoku {
 
+
+		/// <summary>
+		/// Return a compleated sudoku  puzzle
+		/// </summary>
+		/// <returns></returns>
 		public SudokuPuzzle GetNewSudoku() {
 			return FillRandomSudoku();
 		}
 
-		public SudokuPuzzle GetSudokuPuzzle() {
-			return GetSudokuPuzzle2();	// this version generate a little better puzzles (easy puzzles)
+		/// <summary>
+		/// return a random sudoku puzzle. Optionally a base ompleated sudoku can be provided as a base
+		/// to build the puzzle from (must be a compleated puzzle or a random puzzle is returned). 
+		/// </summary>
+		/// <param name="srcsudoku"></param>
+		/// <returns></returns>
+		public SudokuPuzzle GetSudokuPuzzle(SudokuPuzzle srcsudoku = null) {
+			if (srcsudoku == null) return this.GetSudokuPuzzle2();
+			if (srcsudoku.IsSolved()) return this.GetSudokuPuzzle2(srcsudoku);
+			return this.GetSudokuPuzzle2();
 		}
 
 		// easy puzzles
@@ -55,8 +68,10 @@ namespace Sudoku.Puzzle
 		}
 
 		// easy puzzles
-		SudokuPuzzle GetSudokuPuzzle2() {
-			var sourcepuzzle = new CStr(FillRandomSudoku().GetPuzzle());    // source sudoku (solved)
+		SudokuPuzzle GetSudokuPuzzle2(SudokuPuzzle srcsudoku = null) {
+			var sourcepuzzle = new CStr();
+			if (srcsudoku == null) { sourcepuzzle.Str(FillRandomSudoku().GetPuzzle()); }
+			else { sourcepuzzle.Str(srcsudoku.GetPuzzle()); }
 			var workpuzzle = sourcepuzzle.Copy();               // numbers that can be uncovered
 			var targetsudoku = new SudokuPuzzle();              // new empty target puzzle
 			var newpuzzle = new CStr().Fill(81, (byte)'.');     // new puzzle that builds up
