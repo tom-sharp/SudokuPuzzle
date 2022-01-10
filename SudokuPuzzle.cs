@@ -19,6 +19,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.10	Added GetNumber() to return string with positions for a specific number in puzzle
  *	0.09	Added additional support to create puzzles from a base solution (not only random)
  *	0.08	Improved NumPass performance
  *			Renamed BackTrack Algorithm back to NumPass as it deviates from backtrack to much
@@ -168,6 +169,26 @@ namespace Sudoku.Puzzle
 		}
 
 		/// <summary>
+		/// return number positions for requested number as a string with 81 characters
+		/// </summary>
+		/// <param name="number"></param>
+		/// <returns></returns>
+		public string GetNumber(int number)
+		{
+			if ((number <= 0) || (number > 9)) return "bad number";
+			var temp = new CStr(82);
+			int cellvalue = BitMask[number];
+			foreach (var cell in this.puzzle) {
+				if (cell.BitMask == cellvalue) {
+					temp.Append((byte)(number + '0'));
+				}
+				else temp.Append('.');
+			}
+			return temp.ToString();
+		}
+
+
+		/// <summary>
 		///  count number of occurances  of number in puzzle
 		/// </summary>
 		/// <param name="number"></param>
@@ -264,7 +285,7 @@ namespace Sudoku.Puzzle
 								cellnumber--;
 							}
 							else if (numpass[cellnumber] >= 0) break;
-							else cellnumber--;
+							else { cellnumber--; }
 						}
 					}
 					if (NumPassPuzzle.IsSolved()) { this.SetPuzzle(NumPassPuzzle.GetPuzzle()); return true; }
@@ -591,6 +612,7 @@ namespace Sudoku.Puzzle
 				}
 			}
 		}
+
 
 		enum Bit { empty = 0, no1, no2, no3, no4, no5, no6, no7, no8, no9, undefined, all, allNumbers };
 
