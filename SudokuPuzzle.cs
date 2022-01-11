@@ -19,6 +19,7 @@ using Syslib;
  *		
  *		
  *	ver	
+ *	0.11	Added puzzle Validation and check for multi-solution
  *	0.10	Added GetNumber() to return string with positions for a specific number in puzzle
  *	0.09	Added additional support to create puzzles from a base solution (not only random)
  *	0.08	Improved NumPass performance
@@ -216,8 +217,8 @@ namespace Sudoku.Puzzle
 		/// <summary>
 		/// use three rules solving algorithm to resolve sudoku puzzle
 		/// 1. find single cells in puzzle that can hold only a single number
-		/// 2. find single cells withing a cluster (row / column / square) that can hold only a single number
-		/// 3. exclude numbers mask from clusters where traverse cells forces numbers (based on two numbers)
+		/// 2. find single cells within a cluster (row / column / square) that can hold only a single number
+		/// 3. exclude numbers mask from clusters where traverse cells forces numbers
 		/// </summary>
 		/// <param name="requestedcount">requestedcount is number of undefined cells to resolve before return. if set to 0 all numbers will be solved before return</param>
 		/// <returns>return number of undefined cells resolved or -1 if invalid puzzle</returns>
@@ -243,8 +244,8 @@ namespace Sudoku.Puzzle
 		/// <returns>returns true if puzzle is solved or false if puzzle is invalid or unsolvable</returns>
 		public bool ResolveNumPass() {
 			this.ResolveRules();
-			if (this.IsSolved()) return true;
 			if (!this.IsValid()) return false;
+			if (this.IsSolved()) return true;
 			
 			SudokuPuzzle NumPassPuzzle = new SudokuPuzzle();
 			SudokuCell cell = null;
@@ -276,7 +277,7 @@ namespace Sudoku.Puzzle
 						}
 						numpass[cellnumber]++;
 					}
-					if ((cellnumber < 81) && (numpass[cellnumber] > 9)) {
+					if (((cellnumber < 81) && (numpass[cellnumber] > 9))) {
 						// this number resulted in invalid puzzle position at previous cell
 						while (cellnumber >= 0) {
 							if (numpass[cellnumber] > 9) {
@@ -297,20 +298,31 @@ namespace Sudoku.Puzzle
 
 
 		/// <summary>
+		///  Validate make extended checks and look for multiple solutions to the puzzle using backtrack.
+		///  Return true if there is at least one solution to the puzzle or false if puzzle is not valid or unsolvable
+		/// </summary>
+		/// <param name="validation"></param>
+		/// <returns>returns true if there is at least one solution to the puzzle or false if puzzle is unsolveable or</returns>
+		public SudokuValidation ValidatePuzzle() {
+			return ValidateMultiSolutionPuzzle(new SudokuValidation(this.GetPuzzle()));
+		}
+
+		/// <summary>
+		/// Check if puzzle has more than one solution
+		/// return true if there exist more than one solution to the puzzle else false is returned
+		/// </summary>
+		/// <returns></returns>
+		public bool IsMultiSolutionPuzzle() {
+			 if (this.ValidateMultiSolutionPuzzle(new SudokuValidation(this.GetPuzzle()).SetLimit(maxsolutions: 2)).IsMultiSolution) return true;
+			return false;
+		}
+
+		/// <summary>
 		/// check that puzzle is valid and solvable
 		/// </summary>
 		/// <returns></returns>
 		public bool IsValid() {
-			int checkMask;
-			foreach (var cluster in this.clusters) {
-				checkMask = 0;
-				foreach (var cell in cluster) {
-					if ((cell.BitMask & BitMask[(int)Bit.undefined]) == 0) {
-						if ((cell.BitMask & checkMask) != 0) return false;
-						checkMask |= cell.BitMask;
-					}
-				}
-			}
+			if (this.IsInvalid()) return false;
 			if (this.IsUnSolvable()) return false;
 			return true;
 		}
@@ -325,6 +337,21 @@ namespace Sudoku.Puzzle
 				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) return false;
 			}
 			return this.IsValid();
+		}
+
+		// check if same number occure at least twich within a cluster (row/column/square)
+		bool IsInvalid() {
+			int checkMask;
+			foreach (var cluster in this.clusters) {
+				checkMask = 0;
+				foreach (var cell in cluster) {
+					if ((cell.BitMask & BitMask[(int)Bit.undefined]) == 0) {
+						if ((cell.BitMask & checkMask) != 0) return true;
+						checkMask |= cell.BitMask;
+					}
+				}
+			}
+			return false;
 		}
 
 		bool IsUnSolvable() {
@@ -611,6 +638,101 @@ namespace Sudoku.Puzzle
 					}
 				}
 			}
+		}
+
+
+		// Validate puzzle using backtrack to run through all valid combinations of not set numbers in puzzle
+		SudokuValidation ValidateMultiSolutionPuzzle(SudokuValidation validation) {
+			if (validation == null) return new SudokuValidation(puzzle:"");
+			this.ResolveRules();
+			if (this.IsSolved()) {
+				// puzzle solved compleately using rules - this is a true sudoko puzzle
+				validation.IsValidated = true;
+				validation.IsValid = true;
+				validation.IsSolvable = true;
+				validation.IsMultiSolution = false;
+				validation.Solutions.Add(this.GetPuzzle());
+				this.SetPuzzle(validation.Puzzle);  // restore puzzle
+				return validation;
+			}
+			if (!this.IsValid()) {
+				validation.IsValidated = true;
+				validation.IsValid = !this.IsInvalid();
+				validation.IsSolvable = !this.IsUnSolvable();
+				validation.IsMultiSolution = false;
+				this.SetPuzzle(validation.Puzzle);  // restore puzzle
+				return validation;
+			}
+			// puzzle did not solve using rules - continue and check all qualified cominations using backtrack
+			SudokuPuzzle BackTrackPuzzle = new SudokuPuzzle();
+			SudokuCell cell = null;
+			int cellnumber;
+			int[] backtrack = new int[81];    // current numberguess
+			var puzzlestring = new CStr(this.GetPuzzle());
+			bool limitreached = false;
+
+			// select what cells should be target for number guesses (0) and which to be ignored to (-1)
+			cellnumber = 0;
+			while (cellnumber < 81) {
+				cell = this.puzzle.Cell(cellnumber);
+				if ((cell.BitMask & BitMask[(int)Bit.undefined]) != 0) backtrack[cellnumber] = 0;
+				else backtrack[cellnumber] = -1;
+				cellnumber++;
+			}
+
+			// backtrack routine - will move through all undefined cells and test them until the last cell
+			// undefined. and then it will backtrack down to cellnumber -1;
+			cellnumber = 0;
+			while ((cellnumber >= 0) && (!limitreached)) {
+				if (backtrack[cellnumber] >= 0) {
+					cell = this.puzzle.Cell(cellnumber);
+					backtrack[cellnumber]++;
+					while (backtrack[cellnumber] <= 9) {
+						if ((cell.BitMask & BitMask[backtrack[cellnumber]]) != 0) {
+							puzzlestring.Set(cellnumber, (byte)(backtrack[cellnumber] + '0'));
+							BackTrackPuzzle.SetPuzzle(puzzlestring.ToString());
+							if (BackTrackPuzzle.IsValid()) {
+								BackTrackPuzzle.ResolveRules();
+								if (BackTrackPuzzle.IsSolved()) {
+									validation.Solutions.Add(BackTrackPuzzle.GetPuzzle());  // add the valid solution to solutions
+									if ((validation.SolutionsMax > 0) && (validation.SolutionCount >= validation.SolutionsMax)) { limitreached = true; break; }
+								}
+								else { cellnumber++; break; }
+							}
+						}
+						backtrack[cellnumber]++;
+					}
+					if (((cellnumber < 81) && (backtrack[cellnumber] > 9)) || (cellnumber == 81)) {
+						// this number resulted in invalid puzzle position at previous cell
+						if (cellnumber == 81) cellnumber = 80;
+						while (cellnumber >= 0) {
+							if (backtrack[cellnumber] > 9) {
+								puzzlestring.Set(cellnumber, '.');  // reset current cell
+								backtrack[cellnumber] = 0;
+							}
+							else if (backtrack[cellnumber] >= 0) break;
+							cellnumber--;
+							validation.BackTrackCounter++;
+						}
+					}
+				}
+				else cellnumber++;  // cell is defined move on to next
+			}
+			// sum up validation
+			validation.IsValidated = true;
+			if (validation.SolutionCount > 0) {
+				validation.IsValid = true;
+				validation.IsSolvable = true;
+				if (validation.SolutionCount > 1) validation.IsMultiSolution = true;
+				else validation.IsMultiSolution = false;
+			}
+			else {
+				validation.IsValid = false;
+				validation.IsSolvable = false;
+				validation.IsMultiSolution = false;
+			}
+			this.SetPuzzle(validation.Puzzle);  // restore puzzle
+			return validation;
 		}
 
 
